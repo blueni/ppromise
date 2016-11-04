@@ -1,0 +1,53 @@
+<!doctype html>
+<html>
+<head>
+    <title>ppromise-test</title>
+    <meta content="text/html; charset=UTF-8" http-equiv="Content-Type">
+    <meta content="width=device-width,initial-scale=1.0,user-scalable=no,minimum-scale=1.0,maximum-scale=1.0" id="viewport" name="viewport">
+</head>
+
+<body>
+
+
+<script type="text/javascript" src="./ppromise.js"></script>
+<script type="text/javascript">
+
+	
+	var pp = pPromise();
+
+	pp
+
+	.then(function( res , next ){
+		setTimeout(function(){
+			console.log( '2' , 2 )
+			next();
+		} , 100 );
+	})
+
+	.then(function( res , next ){
+		setTimeout(function(){
+			console.log( '1' , 1 )
+			next( null , 'result')
+		} , 50 );
+	})
+
+	.then(function( res , next ){
+		console.log( 'res' , res )
+		next( 'you looked stupid' )
+	})
+
+	.then( null , function( err ){
+		console.log( 'rejected because:' , err )
+	})
+
+	.catch(function( err ){
+		console.log( 'catch error:' , err )
+	})
+	
+
+
+
+</script>
+
+</body>
+</html>
