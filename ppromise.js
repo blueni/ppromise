@@ -4,42 +4,29 @@
  * @author  blueni
  */
 
-// exp;
-// var promise = pPromise();
-// pPromise
-// .then(function( next ){
-//     console.log( 'deffer started...' );
-//     next( null , 'res1...........' );  
-// })
-// .then(function( res1 , next ){
-//     console.log( res1 );
-//     next( null , 'res2...........' );
-// })
-// .then(function( res2 , next ){
-//     console.log( res2 );
-// },function( err ){
-//     console.log( err );
-// });
-
 var pPromise = (function(){
     'use strict';
 
-    var slice = Array.prototype.slice;
-
     function Promise(){
-        this.listeners = {};
+        this.resolveListeners = [];
+        this.rejectListeners = [];
+        this.onerror = null;
         this.length = this.index = 0;
     }
 
     // 异步链
     Promise.prototype.then = function( onresolved , onrejected ){
-        var _this = this;
-        this.listeners[this.length++] = onresolved;
-        if( typeof onrejected === 'function' ){
-            this.listeners[this.length - 1].errFn = onrejected;
-        }
+        this.resolveListeners[this.length] = onresolved;
+        this.rejectListeners[this.length] = onrejected;
+        this.length++;
         return this;
     };
+
+    // 捕获异常
+    Promise.prototype.catch = function( onerror ){
+        this.onerror = onerror;
+        return this;
+    }
 
     function Deferred(){
         this.promise = new Promise();
@@ -49,26 +36,44 @@ var pPromise = (function(){
     Deferred.prototype.next = function( err , res ){
         var deferred = this;
         var promise = this.promise;
-        var usePromise = false;
-        var listener = promise.listeners[ promise.index ];
-        if( !fn )return;
+
+        // 后续没有then了
+        if( promise.index > promise.length - 1 )return;
+
+        var usePromiseStead = false;
+        var onresolved = promise.resolveListeners[ promise.index ];
+        var onrejected = promise.rejectListeners[ promise.index ];
+
+        // 报错,执行onerror方法&跳出异步链
         if( err ){
-            return fn.errFn && fn.errFn( err );
+            onrejected && onrejected( err );
+            promise.onerror( err );    
+            return;
         }
 
-        var _promise = listener( res , function( _err , _res ){
+        // 本次then并没有传入onresolved监听器,使用下一个onresolved
+        if( !onresolved ){
             promise.index++;
+            deferred.next( err , res );
+            return;
+        }   
+
+        // onresolved方法传入上一次的返回结果&执行下一轮的匿名方法(next)
+        var _promise = onresolved( res , function( _err , _res ){
             setTimeout(function(){
-                if( usePromise )return;
-                if( _err ){
-                    promise.index = promise.length - 1;
-                }
+                // 如果onresolved方法返回了promise,next再用也不起效果了
+                if( usePromiseStead )return;
+
+                // 到下一个then去
+                promise.index++;
                 deferred.next( _err , _res );
             });
         });
 
+        // onresolved返回了一个promise,使用promise的返回值
         if( _promise && _promise.then ){
-            usePromise = true;
+            promise.index++;
+            usePromiseStead = true;
             _promise.then(function( _res ){
                 deferred.next( null , _res );
             },function( _err ){
@@ -79,10 +84,19 @@ var pPromise = (function(){
 
     return function pPromise( onresolved , onrejected ){
         var deferred = new Deferred();
+
+        // 在写完了所有的then之后再来执行异步链
         setTimeout(function(){
             deferred.next();
         },0);
-        return deferred.promise.then( onresolved , onrejected );
+
+        // pPromise方法就可以直接当成then方法使用
+        if( typeof onresolved === 'function' ){
+            return deferred.promise.then( onresolved , onrejected );
+        }
+
+        // 返回promise好继续调用then方法
+        return deferred.promise;
     }
 
 })();
